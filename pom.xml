@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.9</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example.sync</groupId>
+    <artifactId>camellia-sync</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>camellia-sync</name>
+    <description>雲地 Redis 資料同步（Camellia）－ 單一程式多角色</description>
+
+    <modules>
+        <module>sync-common</module>
+        <module>sync-proxy</module>
+        <module>sync-app</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <camellia.version>1.4.2</camellia.version>
+        <jedis.version>5.2.0</jedis.version>
+        <kafka-clients.version>3.9.0</kafka-clients.version>
+        <!-- Camellia proxy-core 需要 Netty 4.2（MultiThreadIoEventLoopGroup 等 4.2 才有的類別），
+             override Spring Boot 預設的 4.1.x -->
+        <netty.version>4.2.10.Final</netty.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.example.sync</groupId>
+                <artifactId>sync-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.example.sync</groupId>
+                <artifactId>sync-proxy</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.netease.nim</groupId>
+                <artifactId>camellia-redis-proxy-spring-boot-starter</artifactId>
+                <version>${camellia.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netease.nim</groupId>
+                <artifactId>camellia-redis-proxy-core</artifactId>
+                <version>${camellia.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netease.nim</groupId>
+                <artifactId>camellia-redis-proxy-mq-common</artifactId>
+                <version>${camellia.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netease.nim</groupId>
+                <artifactId>camellia-redis-proxy-mq-kafka</artifactId>
+                <version>${camellia.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>redis.clients</groupId>
+                <artifactId>jedis</artifactId>
+                <version>${jedis.version}</version>
+            </dependency>
+
+            <!-- 自建 Kafka sender/consumer 用，override mq-kafka 透傳的 1.1.1（太舊，無法連 Kafka 3.x/Redpanda） -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka-clients.version}</version>
+            </dependency>
+
+            <!-- Camellia proxy-core 用 netty-all，需固定 4.2 版 -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-all</artifactId>
+                <version>${netty.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

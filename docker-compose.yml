@@ -1,0 +1,158 @@
+# 雲地 Redis 資料同步 demo（camellia-sync）
+#
+# 拓樸：每 region 一個 Spring Boot 實例（跑 Camellia proxy + Gateway + SyncWorker + Console），
+#       一出站佇列、跨區消費。
+#   cloud-app  : producer=GcpPubSub(出站 cloud-pubsub)、consumer=Kafka(入站自 onprem-kafka)
+#   onprem-app : producer=Kafka(出站 onprem-kafka)、consumer=GcpPubSub(入站自 cloud-pubsub)
+#
+# Redis 後端：
+#   雲端 = Memorystore 模擬（ReadWrite 讀寫分離，2 IP：write + read，read 複寫自 write）
+#   地端 = Sentinel（master + replica + 3 sentinel）
+
+x-sentinel: &sentinel
+  image: redis:7-alpine
+  command: >
+    sh -c "printf 'sentinel resolve-hostnames yes\\n\
+            sentinel monitor mymaster onprem-redis-master 6379 2\\n\
+            sentinel down-after-milliseconds mymaster 5000\\n\
+            sentinel failover-timeout mymaster 10000\\n\
+            sentinel parallel-syncs mymaster 1\\n' > /tmp/sentinel.conf &&
+           redis-server /tmp/sentinel.conf --sentinel"
+  depends_on:
+    - onprem-redis-master
+    - onprem-redis-replica
+
+services:
+  # ===== 雲端側（Cloud）=====
+  cloud-redis-write:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6401:6379"]
+
+  cloud-redis-read:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--replicaof", "cloud-redis-write", "6379"]
+    ports: ["6402:6379"]
+    depends_on:
+      - cloud-redis-write
+
+  # GCP Pub/Sub emulator（雲端出站佇列）
+  cloud-pubsub:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    ports: ["8085:8085"]
+
+  cloud-app:
+    build: .
+    environment:
+      APP_ROLE: All
+      APP_LOCATION: Cloud
+      WEB_PORT: "8080"
+      REDIS_MODE: ReadWrite
+      SYNC_REDIS_READ_HOST: cloud-redis-read
+      SYNC_REDIS_READ_PORT: "6379"
+      SYNC_REDIS_WRITE_HOST: cloud-redis-write
+      SYNC_REDIS_WRITE_PORT: "6379"
+      SYNC_PRODUCER_QUEUE_TYPE: GcpPubSub
+      SYNC_CONSUMER_QUEUE_TYPE: Kafka
+      SYNC_PUBSUB_HOST: http://cloud-pubsub:8085
+      SYNC_PUBSUB_PROJECT_ID: camellia-sync-demo
+      SYNC_PUBSUB_TOPIC: camellia-sync
+      SYNC_PUBSUB_SUBSCRIPTION: camellia-sync-sub
+      SYNC_KAFKA_BOOTSTRAP_SERVERS: onprem-kafka:9092
+      SYNC_KAFKA_TOPIC: camellia-sync
+      SYNC_KAFKA_GROUP_ID: camellia
+    ports:
+      - "8080:8080"
+      - "6380:6380"
+      - "16379:16379"
+    depends_on:
+      - cloud-redis-write
+      - cloud-redis-read
+      - cloud-pubsub
+      - onprem-kafka
+
+  # ===== 地端側（OnPrem）=====
+  onprem-redis-master:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6403:6379"]
+
+  onprem-redis-replica:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--replicaof", "onprem-redis-master", "6379"]
+    ports: ["6404:6379"]
+    depends_on:
+      - onprem-redis-master
+
+  onprem-redis-sentinel-1:
+    <<: *sentinel
+  onprem-redis-sentinel-2:
+    <<: *sentinel
+  onprem-redis-sentinel-3:
+    <<: *sentinel
+
+  # Kafka（地端出站佇列，KRaft 單節點）
+  onprem-kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      CLUSTER_ID: "DM_c8MAKRlauFo91VsfJzg"
+      KAFKA_NODE_ID: "0"
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "0@onprem-kafka:9093"
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://onprem-kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_NUM_PARTITIONS: "1"
+    ports:
+      - "9092:9092"
+
+  onprem-app:
+    build: .
+    environment:
+      APP_ROLE: All
+      APP_LOCATION: OnPrem
+      WEB_PORT: "8081"
+      REDIS_MODE: Sentinel
+      SYNC_REDIS_SENTINEL_NODES: onprem-redis-sentinel-1:26379,onprem-redis-sentinel-2:26379,onprem-redis-sentinel-3:26379
+      SYNC_REDIS_SENTINEL_MASTER: mymaster
+      SYNC_PRODUCER_QUEUE_TYPE: Kafka
+      SYNC_CONSUMER_QUEUE_TYPE: GcpPubSub
+      SYNC_PUBSUB_HOST: http://cloud-pubsub:8085
+      SYNC_PUBSUB_PROJECT_ID: camellia-sync-demo
+      SYNC_PUBSUB_TOPIC: camellia-sync
+      SYNC_PUBSUB_SUBSCRIPTION: camellia-sync-sub
+      SYNC_KAFKA_BOOTSTRAP_SERVERS: onprem-kafka:9092
+      SYNC_KAFKA_TOPIC: camellia-sync
+      SYNC_KAFKA_GROUP_ID: camellia
+    ports:
+      - "8086:8081"
+      - "6381:6380"
+      - "16380:16379"
+    depends_on:
+      - onprem-redis-master
+      - onprem-redis-replica
+      - onprem-redis-sentinel-1
+      - onprem-redis-sentinel-2
+      - onprem-redis-sentinel-3
+      - onprem-kafka
+      - cloud-pubsub
+
+  # ===== Web UI（Node 前端，連兩端 REST API）=====
+  web-ui:
+    build: ./web-ui
+    environment:
+      CLOUD_API: http://localhost:8080
+      ONPREM_API: http://localhost:8086
+    ports:
+      - "3000:3000"
+    depends_on:
+      - cloud-app
+      - onprem-app

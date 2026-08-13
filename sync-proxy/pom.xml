@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.sync</groupId>
+        <artifactId>camellia-sync</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sync-proxy</artifactId>
+    <name>sync-proxy</name>
+    <description>Camellia 擴充點掛接：MqPackSender×3、consumer ProxyPlugin×3、RedisModeRouteConfProvider、SyncConsoleService</description>
+
+    <dependencies>
+        <!-- Camellia proxy 核心（ProxyPlugin / RouteConfProvider / GlobalRedisProxyEnv / Command / Reply） -->
+        <dependency>
+            <groupId>com.netease.nim</groupId>
+            <artifactId>camellia-redis-proxy-core</artifactId>
+        </dependency>
+
+        <!-- MqPack / MqPackSender / MqPackSerializer / MqMultiWriteProducerProxyPlugin -->
+        <dependency>
+            <groupId>com.netease.nim</groupId>
+            <artifactId>camellia-redis-proxy-mq-common</artifactId>
+        </dependency>
+
+        <!-- 共用模型與指標 -->
+        <dependency>
+            <groupId>com.example.sync</groupId>
+            <artifactId>sync-common</artifactId>
+        </dependency>
+
+        <!-- Spring 註解與 @ConfigurationProperties 綁定 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Redis Pub/Sub broker（Jedis） -->
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+        </dependency>
+
+        <!-- 自建 Kafka sender/consumer -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.sync</groupId>
+        <artifactId>camellia-sync</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sync-common</artifactId>
+    <name>sync-common</name>
+    <description>共用模型：QueueType/RedisMode/AppRole enum、設定模型、佇列指標介面（MqPack 復用 Camellia mq-common）</description>
+
+    <dependencies>
+        <!-- 復用 Camellia 的 MqPack / MqPackSender / MqPackSerializer（不重寫核心） -->
+        <dependency>
+            <groupId>com.netease.nim</groupId>
+            <artifactId>camellia-redis-proxy-mq-common</artifactId>
+        </dependency>
+
+        <!-- @ConfigurationProperties 所在之 spring-boot 核心 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+        </dependency>
+
+        <!-- 設定模型綁定（annotation processor） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Micrometer 指標（可選，供 gauge 註冊） -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+
+        <!-- Jackson（snapshot JSON 序列化） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>

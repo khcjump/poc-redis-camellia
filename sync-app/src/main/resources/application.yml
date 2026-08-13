@@ -1,0 +1,69 @@
+server:
+  port: ${WEB_PORT:8080}
+
+spring:
+  application:
+    name: camellia-sync
+
+app:
+  role: ${APP_ROLE:All}
+  location: ${APP_LOCATION:Cloud}
+
+sync:
+  # outbound queue (local Gateway publishes changes here)
+  producer-queue-type: ${SYNC_PRODUCER_QUEUE_TYPE:Kafka}
+  # inbound queue (SyncWorker consumes cross-region changes from here)
+  consumer-queue-type: ${SYNC_CONSUMER_QUEUE_TYPE:Kafka}
+  redis-mode: ${REDIS_MODE:Single}
+  queue-ttl-seconds: ${QUEUE_TTL_SECONDS:30}
+  swtch:
+    min-interval-seconds: ${SWITCH_MIN_INTERVAL_SECONDS:10}
+  redis:
+    password: ${REDIS_PASSWORD:}
+    single-host: ${REDIS_SINGLE_HOST:127.0.0.1}
+    single-port: ${REDIS_SINGLE_PORT:6379}
+    sentinel-nodes: ${REDIS_SENTINEL_NODES:127.0.0.1:26379}
+    sentinel-master: ${REDIS_SENTINEL_MASTER:mymaster}
+    read-host: ${REDIS_READ_HOST:127.0.0.1}
+    read-port: ${REDIS_READ_PORT:6379}
+    write-host: ${REDIS_WRITE_HOST:127.0.0.1}
+    write-port: ${REDIS_WRITE_PORT:6379}
+  pubsub:
+    host: ${PUBSUB_HOST:http://cloud-pubsub:8085}
+    project-id: ${PUBSUB_PROJECT_ID:camellia-sync-demo}
+    topic: ${PUBSUB_TOPIC:camellia-sync}
+    subscription: ${PUBSUB_SUBSCRIPTION:camellia-sync-sub}
+    poll-max-messages: ${PUBSUB_POLL_MAX_MESSAGES:200}
+    poll-interval-ms: ${PUBSUB_POLL_INTERVAL_MS:100}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topic: ${KAFKA_TOPIC:camellia-sync}
+    group-id: ${KAFKA_GROUP_ID:camellia}
+  redis-pubsub:
+    host: ${REDIS_PUBSUB_HOST:127.0.0.1}
+    port: ${REDIS_PUBSUB_PORT:6379}
+    password: ${REDIS_PUBSUB_PASSWORD:}
+    channel: ${REDIS_PUBSUB_CHANNEL:__camellia-sync}
+  local-proxy:
+    host: ${SYNC_PROXY_HOST:127.0.0.1}
+    port: ${REDIS_PROXY_PORT:6380}
+
+# Embedded Camellia Redis proxy dynamic configuration.
+# NOTE: the starter reads `server.port` as the Redis port initial value, so we MUST
+# override it here (config.port) to avoid colliding with Tomcat.
+camellia-redis-proxy:
+  config:
+    port: ${REDIS_PROXY_PORT:6380}
+    console.port: ${CONSOLE_PORT:16379}
+    monitor.enable: true
+    monitor.interval.seconds: 5
+    route.conf.provider: com.example.sync.proxy.route.RedisModeRouteConfProvider
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
