@@ -149,8 +149,10 @@ services:
   web-ui:
     build: ./web-ui
     environment:
-      CLOUD_API: http://localhost:8080
-      ONPREM_API: http://localhost:8086
+      # 容器內 localhost 指向 web-ui 自己，無法連到後端；需用 compose 服務名稱。
+      # onprem-app 容器內 port 為 8081（宿主映射 8086，故此處用 8081）。
+      CLOUD_API: http://cloud-app:8080
+      ONPREM_API: http://onprem-app:8081
     ports:
       - "3000:3000"
     depends_on:
