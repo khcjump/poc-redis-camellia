@@ -29,10 +29,13 @@
         <maven.compiler.release>25</maven.compiler.release>
         <camellia.version>1.4.2</camellia.version>
         <jedis.version>5.2.0</jedis.version>
-        <kafka-clients.version>3.9.0</kafka-clients.version>
+        <kafka-clients.version>3.9.2</kafka-clients.version>
         <!-- Camellia proxy-core 需要 Netty 4.2（MultiThreadIoEventLoopGroup 等 4.2 才有的類別），
              override Spring Boot 預設的 4.1.x -->
         <netty.version>4.2.10.Final</netty.version>
+        <!-- CVE fixes: override Spring Boot managed versions with patched versions -->
+        <micrometer.version>1.15.12</micrometer.version>
+        <jackson.version>2.21.4</jackson.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -88,6 +91,25 @@
                 <groupId>io.netty</groupId>
                 <artifactId>netty-all</artifactId>
                 <version>${netty.version}</version>
+            </dependency>
+
+            <!-- CVE-2026-40983 & CVE-2026-40984 fixes: override Spring Boot managed version -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-core</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+
+            <!-- CVE-2026-54512, CVE-2026-54513, CVE-2026-54514, CVE-2026-54515, CVE-2026-59888 fixes: override Spring Boot managed version -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
