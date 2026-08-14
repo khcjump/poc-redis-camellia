@@ -25,8 +25,8 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.release>21</maven.compiler.release>
+        <java.version>25</java.version>
+        <maven.compiler.release>25</maven.compiler.release>
         <camellia.version>1.4.2</camellia.version>
         <jedis.version>5.2.0</jedis.version>
         <kafka-clients.version>3.9.0</kafka-clients.version>
