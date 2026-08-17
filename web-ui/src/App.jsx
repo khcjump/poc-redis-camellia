@@ -6,6 +6,7 @@ import WriteSession from './components/WriteSession.jsx'
 import SwitchPanel from './components/SwitchPanel.jsx'
 import ComparePanel from './components/ComparePanel.jsx'
 import QueuePanel from './components/QueuePanel.jsx'
+import StressPanel from './components/StressPanel.jsx'
 import ParamsPanel from './components/ParamsPanel.jsx'
 
 export default function App() {
@@ -52,7 +53,13 @@ export default function App() {
 
         <div className="spacer" />
 
-        {/* 6. Params (two columns) */}
+        {/* 6. Async update stress test (full width) */}
+        <div className="spacer" />
+        <StressPanel />
+
+        <div className="spacer" />
+
+        {/* 7. Params (two columns) */}
         <ParamsPanel />
 
         <footer className="app__footer">

@@ -255,6 +255,52 @@
 }
 .cool__bar { height: 100%; background: linear-gradient(90deg, var(--cloud), var(--onprem)); transition: width var(--t-med); }
 
+/* ---- stress-test progress ---- */
+.progress {
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-inset);
+  border: 1px solid var(--line-1);
+  overflow: hidden;
+}
+.progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cloud), var(--onprem));
+  transition: width var(--t-med);
+}
+
+/* ---- stress-test results table ---- */
+.stress-tbl-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+.stress-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.stress-tbl th,
+.stress-tbl td {
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.stress-tbl th {
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  background: var(--bg-2);
+}
+.stress-tbl td { color: var(--text-1); }
+.stress-tbl tbody tr:hover { background: var(--bg-2); }
+.stress-tbl tbody tr:last-child td { border-bottom: none; }
+.stress-tbl__drain { color: var(--info); font-weight: 600; }
+.stress-tbl__err { color: var(--bad); }
+
 /* ---- footer ---- */
 .app__footer {
   margin-top: var(--sp-6);
