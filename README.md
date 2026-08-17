@@ -46,14 +46,13 @@ flowchart LR
         onpremApp --> onpremWorker
         onpremApp --> onpremConsole
         onpremGateway --> onpremMaster
-        onpremGateway --> onpremReplica
         onpremGateway -->|publish| onpremKafka
         onpremWorker -->|replay| onpremMaster
         onpremMaster --- onpremReplica
         onpremSentinel -. monitors .-> onpremMaster
         onpremSentinel -. monitors .-> onpremReplica
     end
-    
+
     subgraph cloud["Cloud region"]
         cloudApp["cloud-app<br/>role=All<br/>REST :8080"]
         cloudGateway["RedisGateway"]
@@ -71,9 +70,6 @@ flowchart LR
         cloudGateway -->|publish| cloudPubSub
         cloudWorker -->|replay| cloudWrite
     end
-
-
-
     webui -->|REST proxy /cloud| cloudApp
     webui -->|REST proxy /onprem| onpremApp
     cloudPubSub -->|cross-region consume| onpremWorker
@@ -106,7 +102,7 @@ camellia-sync/
 ├── sync-proxy/    Camellia 擴充點實作：3×sender、3×consumer plugin、RouteConfProvider、ConsoleService
 ├── sync-app/      Spring Boot 主程式 + REST API + role/queue 注入(SyncEnvironmentPostProcessor)
 ├── web-ui/        Node.js (Vite + React + Express) 前端，反代 /cloud、/onprem
-├── Dockerfile     multi-stage：Maven 21 建置 → temurin 21-jre
+├── Dockerfile     multi-stage：Maven 25 建置 → temurin 25-jre
 └── docker-compose.yml
 ```
 
@@ -120,7 +116,7 @@ docker compose up -d --build
 |---|---|---|
 | web-ui | http://localhost:3000 | 操作 + 檢查介面 |
 | cloud-app | http://localhost:8080 | Cloud region REST API（Redis proxy :6380、console :16379） |
-| onprem-app | http://localhost:8086 | OnPrem region REST API（容器內 8081，宿主映射 8086） |
+| onprem-app | http://localhost:8086 | OnPrem region REST API（容器內 8081，宿主映射 8086；Redis proxy :6381、console :16380） |
 | onprem-kafka | localhost:9092 | 地端出站佇列（KRaft） |
 | cloud-pubsub | localhost:8085 | 雲端出站佇列（GCP Pub/Sub emulator） |
 | cloud-redis-write/read | localhost:6401 / 6402 | 雲端 Memorystore 模擬（讀寫分離） |
@@ -186,14 +182,14 @@ cd test-script
 
 1. **cloud→onprem**（GcpPubSub 出站）：cloud 寫入 → onprem `compare` 見 `origin=Cloud`。
 2. **onprem→cloud**（Kafka 出站）：onprem 寫入 → cloud `compare` 見 `origin=OnPrem`。
-3. **EXPIRE/SETEX 轉送**：TTL=5 的 key 兩端同步倒數、同步過期。
+3. **EXPIRE/SETEX 轉送**：TTL=8 的 key 兩端同步倒數、同步過期。
 4. **大小網切換防抖**：10 秒內二次切換回 429。
-5. **佇列指標**：兩端 `replayFail=0`（零重放失敗）。
+5. **佇列指標**：兩端 `replayFail=0` 且 `sendFail=0`（零重放與發送失敗）。
 6. **web-ui**：:3000 HTTP 200。
 
 ## 技術棧
 
-- **Java 21 + Spring Boot 3.5.9**（Maven 多模組）
+- **Java 25 + Spring Boot 3.5.9**（Maven 多模組）
 - **Camellia 1.4.2**（`camellia-redis-proxy-spring-boot-starter` + `mq-common` + `mq-kafka`，內嵌 proxy）
 - **Netty 4.2.10**（Camellia proxy 依賴，override Spring Boot 的 4.1）
 - **Jedis 5.2.0**（REST 寫入經 proxy 觸發同步）
