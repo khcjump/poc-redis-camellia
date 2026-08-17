@@ -105,11 +105,16 @@
                 <version>${micrometer.version}</version>
             </dependency>
 
-            <!-- CVE-2026-54512, CVE-2026-54513, CVE-2026-54514, CVE-2026-54515, CVE-2026-59888 fixes: override Spring Boot managed version -->
+            <!-- CVE-2026-54512, CVE-2026-54513, CVE-2026-54514, CVE-2026-54515, CVE-2026-59888 fixes:
+                 override the whole jackson-bom (databind + core + annotations + datatypes) so versions stay aligned.
+                 A databind-only override leaves jackson-annotations/core at the Boot-managed 2.19.x,
+                 which lacks JsonSerializeAs (added in 2.21) and crashes Spring at startup. -->
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
                 <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

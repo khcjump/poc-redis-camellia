@@ -26,6 +26,67 @@
                                  web-ui (Node) :3000
 ```
 
+以下 Mermaid 圖提供可在 GitHub Markdown 直接渲染的系統架構視圖：
+
+```mermaid
+flowchart LR
+    webui["web-ui<br/>Node.js :3000"]
+
+    subgraph onprem["OnPrem region"]
+        onpremApp["onprem-app<br/>role=All<br/>REST :8081"]
+        onpremGateway["RedisGateway"]
+        onpremWorker["SyncWorker"]
+        onpremConsole["Console"]
+        onpremMaster[("onprem-redis-master")]
+        onpremReplica[("onprem-redis-replica")]
+        onpremSentinel["3x Sentinel"]
+        onpremKafka[("onprem-kafka<br/>Kafka KRaft")]
+
+        onpremApp --> onpremGateway
+        onpremApp --> onpremWorker
+        onpremApp --> onpremConsole
+        onpremGateway --> onpremMaster
+        onpremGateway --> onpremReplica
+        onpremGateway -->|publish| onpremKafka
+        onpremWorker -->|replay| onpremMaster
+        onpremMaster --- onpremReplica
+        onpremSentinel -. monitors .-> onpremMaster
+        onpremSentinel -. monitors .-> onpremReplica
+    end
+    
+    subgraph cloud["Cloud region"]
+        cloudApp["cloud-app<br/>role=All<br/>REST :8080"]
+        cloudGateway["RedisGateway"]
+        cloudWorker["SyncWorker"]
+        cloudConsole["Console"]
+        cloudWrite[("cloud-redis-write")]
+        cloudRead[("cloud-redis-read")]
+        cloudPubSub[("cloud-pubsub<br/>GCP Pub/Sub emulator")]
+
+        cloudApp --> cloudGateway
+        cloudApp --> cloudWorker
+        cloudApp --> cloudConsole
+        cloudGateway --> cloudWrite
+        cloudGateway --> cloudRead
+        cloudGateway -->|publish| cloudPubSub
+        cloudWorker -->|replay| cloudWrite
+    end
+
+
+
+    webui -->|REST proxy /cloud| cloudApp
+    webui -->|REST proxy /onprem| onpremApp
+    cloudPubSub -->|cross-region consume| onpremWorker
+    onpremKafka -->|cross-region consume| cloudWorker
+
+    classDef app fill:#e8f1ff,stroke:#356ae6,color:#10234f
+    classDef queue fill:#fff4d6,stroke:#c58a00,color:#4a3300
+    classDef redis fill:#e8f7ed,stroke:#2d8a4e,color:#123b20
+    class cloudApp,onpremApp,webui app
+    class cloudPubSub,onpremKafka queue
+    class cloudWrite,cloudRead,onpremMaster,onpremReplica redis
+```
+
 - **雙活 (active-active)**：兩區各自主寫本地 Redis，並把變更發佈到本地出站佇列；對端的
   SyncWorker 消費後重放，達成雙向同步。
 - **每 region 一個出站佇列、跨區消費**：Cloud 出站用 **GcpPubSub**、OnPrem 出站用 **Kafka**，
@@ -67,6 +128,23 @@ docker compose up -d --build
 
 > 埠注意：宿主若已有其他服務佔用 8080/8081 等，請改 `docker-compose.yml` 的宿主映射。
 > 本 repo 已將 onprem-app 宿主映射設為 **8086**（避開既有 session 服務的 8081）。
+
+## 端到端測試
+
+Stack 啟動後，可使用 `test-script/` 下的 REST API 測試腳本驗證健康狀態、雙向同步、TTL、大小網切換防抖、佇列指標與 Web UI：
+
+```bash
+cd test-script
+./run-all.sh
+```
+
+也可以單獨執行某一項測試，例如：
+
+```bash
+./test-02-cloud-to-onprem.sh
+```
+
+完整測試清單、環境變數與執行行為請參考 [`test-script/README.md`](test-script/README.md)。
 
 ## 組態參數（env）
 
