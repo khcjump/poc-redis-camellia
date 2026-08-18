@@ -71,20 +71,20 @@ public class MqIntegrationConfig {
     @ConditionalOnProperty(name = "sync.queue-type", havingValue = "GcpPubSub")
     public GcpPubSubConsumerProxyPlugin gcpPubSubConsumerProxyPlugin(
             PubSubClient client, SyncProperties props, QueueMetrics metrics) {
-        return new GcpPubSubConsumerProxyPlugin(client, props.getPubsub(), metrics, props.getRemoteAppUrl());
+        return new GcpPubSubConsumerProxyPlugin(client, props.getPubsub(), metrics, props.getRemoteAppUrl(), props.getSkipRegExp());
     }
 
     @Bean
     @ConditionalOnProperty(name = "sync.queue-type", havingValue = "RedisPubSub")
     public RedisPubSubConsumerProxyPlugin redisPubSubConsumerProxyPlugin(
             RedisPubSubBroker broker, SyncProperties props, QueueMetrics metrics) {
-        return new RedisPubSubConsumerProxyPlugin(broker, metrics, props.getRemoteAppUrl());
+        return new RedisPubSubConsumerProxyPlugin(broker, metrics, props.getRemoteAppUrl(), props.getSkipRegExp());
     }
 
     @Bean
     @ConditionalOnProperty(name = "sync.queue-type", havingValue = "Kafka")
     public KafkaConsumerProxyPlugin kafkaConsumerProxyPlugin(SyncProperties props, QueueMetrics metrics) {
-        return new KafkaConsumerProxyPlugin(props.getKafka(), metrics, props.getRemoteAppUrl());
+        return new KafkaConsumerProxyPlugin(props.getKafka(), metrics, props.getRemoteAppUrl(), props.getSkipRegExp());
     }
 
     // --- route + console ---

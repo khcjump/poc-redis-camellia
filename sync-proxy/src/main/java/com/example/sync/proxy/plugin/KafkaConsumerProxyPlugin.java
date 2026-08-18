@@ -46,19 +46,25 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
     private final SyncProperties.KafkaConfig config;
     private final QueueMetrics metrics;
     private final String remoteAppUrl;
+    private final String skipRegExp;
 
     private volatile boolean running = false;
     private volatile KafkaConsumer<String, byte[]> consumer;
     private Thread thread;
 
-    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics, String remoteAppUrl) {
+    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics, String remoteAppUrl, String skipRegExp) {
         this.config = config;
         this.metrics = metrics;
         this.remoteAppUrl = remoteAppUrl;
+        this.skipRegExp = skipRegExp;
+    }
+
+    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics, String remoteAppUrl) {
+        this(config, metrics, remoteAppUrl, null);
     }
 
     public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics) {
-        this(config, metrics, null);
+        this(config, metrics, null, null);
     }
 
     @Override
@@ -99,7 +105,7 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
                         metrics.recordConsumed();
 
                         // 3. 呼叫重放器發送至遠端 App API 或本地 Redis 主庫
-                        MqPackReplayer.replay(pack, metrics, remoteAppUrl);
+                        MqPackReplayer.replay(pack, metrics, remoteAppUrl, skipRegExp);
                     } catch (Exception e) {
                         metrics.recordReplayFail();
                         log.warn("[KafkaConsumer] 訊息重放失敗", e);

@@ -14,6 +14,8 @@ sync:
   queue-type: ${SYNC_QUEUE_TYPE:Kafka}
   redis-mode: ${REDIS_MODE:Single}
   queue-ttl-seconds: ${QUEUE_TTL_SECONDS:30}
+  # regex for keys to skip replay (find semantics); blank disables skip
+  skip-regexp: ${SKIP_REG_EXP:}
   swtch:
     min-interval-seconds: ${SWITCH_MIN_INTERVAL_SECONDS:10}
   redis:

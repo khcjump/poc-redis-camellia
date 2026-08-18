@@ -3,6 +3,7 @@ package com.example.sync.proxy.plugin;
 import com.example.sync.common.metrics.QueueMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.netease.nim.camellia.redis.proxy.command.Command;
 import com.netease.nim.camellia.redis.proxy.conf.GlobalRedisProxyEnv;
 import com.netease.nim.camellia.redis.proxy.monitor.CommandFailMonitor;
 import com.netease.nim.camellia.redis.proxy.mq.common.MqPack;
@@ -10,16 +11,21 @@ import com.netease.nim.camellia.redis.proxy.mq.common.MqPackSerializer;
 import com.netease.nim.camellia.redis.proxy.reply.ErrorReply;
 import com.netease.nim.camellia.redis.proxy.reply.Reply;
 import com.netease.nim.camellia.redis.proxy.upstream.IUpstreamClientTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * 跨區重放器（MqPack Replayer）：
@@ -48,8 +54,30 @@ public final class MqPackReplayer {
             .build();
     /** 使用共享 ObjectMapper 建構 JSON，避免手工拼接字串造成格式破損 */
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(MqPackReplayer.class);
+
+    /** skipRegExp 的編譯快取（key 為原始正則字串），避免每筆訊息重複編譯 */
+    private static volatile String cachedSkipRegExp = "";
+    private static volatile Pattern cachedSkipPattern;
 
     private MqPackReplayer() {
+    }
+
+    /**
+     * 重放 MqPack（可依 skipRegExp 跳過）。
+     * 若 {@code skipRegExp} 非空白且 {@code pack} 內任一 key 符合該正則式（{@code find()} 語意），
+     * 則直接跳過重放並靜默回傳：不計入 success/fail，訊息仍會由呼叫方 ACK，避免無限重投遞。
+     *
+     * @param pack         要重放的 Redis 指令包
+     * @param metrics      佇列指標統計器
+     * @param remoteAppUrl 對端 App REST API 基礎網址 (如 http://onprem-app:8081)
+     * @param skipRegExp   跳過重放的 key 正則式，空白表示不跳過
+     */
+    public static void replay(MqPack pack, QueueMetrics metrics, String remoteAppUrl, String skipRegExp) {
+        if (shouldSkip(pack, skipRegExp)) {
+            return;
+        }
+        replay(pack, metrics, remoteAppUrl);
     }
 
     /**
@@ -66,7 +94,6 @@ public final class MqPackReplayer {
             replayLocal(pack, metrics);
             return;
         }
-
         try {
             // 1. 將 MqPack 序列化並編碼為 Base64
             byte[] bytes = MqPackSerializer.serialize(pack);
@@ -100,6 +127,54 @@ public final class MqPackReplayer {
 
     public static void replay(MqPack pack, QueueMetrics metrics) {
         replay(pack, metrics, null);
+    }
+
+    private static boolean shouldSkip(MqPack pack, String skipRegExp) {
+        if (skipRegExp == null || skipRegExp.isBlank()) {
+            return false;
+        }
+        try {
+            Pattern pattern = compileSkipPattern(skipRegExp);
+            if (pattern == null) {
+                return false;
+            }
+            Command command = pack.getCommand();
+            if (command == null) {
+                return false;
+            }
+            List<byte[]> keys = command.getKeys();
+            if (keys == null || keys.isEmpty()) {
+                return false;
+            }
+            for (byte[] key : keys) {
+                if (key == null) {
+                    continue;
+                }
+                if (pattern.matcher(new String(key, StandardCharsets.UTF_8)).find()) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            log.warn("[MqPackReplayer] 判斷 skipRegExp 失敗，改為不跳過", e);
+            return false;
+        }
+    }
+
+    private static Pattern compileSkipPattern(String skipRegExp) {
+        if (skipRegExp.equals(cachedSkipRegExp)) {
+            return cachedSkipPattern;
+        }
+        Pattern compiled;
+        try {
+            compiled = Pattern.compile(skipRegExp);
+        } catch (PatternSyntaxException e) {
+            log.warn("[MqPackReplayer] skipRegExp 正則式無效，停用 skip 功能: {}", skipRegExp, e);
+            compiled = null;
+        }
+        cachedSkipRegExp = skipRegExp;
+        cachedSkipPattern = compiled;
+        return compiled;
     }
 
     /**

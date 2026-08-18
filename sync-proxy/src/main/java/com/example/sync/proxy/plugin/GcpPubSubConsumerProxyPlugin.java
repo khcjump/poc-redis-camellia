@@ -43,11 +43,12 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
     private final long pollIntervalMs;
     private final QueueMetrics metrics;
     private final String remoteAppUrl;
+    private final String skipRegExp;
 
     private volatile boolean running = false;
     private Thread thread;
 
-    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics, String remoteAppUrl) {
+    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics, String remoteAppUrl, String skipRegExp) {
         this.client = client;
         this.topic = config.getTopic();
         this.subscription = config.getSubscription();
@@ -55,10 +56,15 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
         this.pollIntervalMs = config.getPollIntervalMs();
         this.metrics = metrics;
         this.remoteAppUrl = remoteAppUrl;
+        this.skipRegExp = skipRegExp;
+    }
+
+    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics, String remoteAppUrl) {
+        this(client, config, metrics, remoteAppUrl, null);
     }
 
     public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics) {
-        this(client, config, metrics, null);
+        this(client, config, metrics, null, null);
     }
 
     @Override
@@ -99,7 +105,7 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
                         metrics.recordConsumed();
 
                         // 3. 呼叫重放器發送至遠端 App API 或本地 Redis 主庫
-                        MqPackReplayer.replay(pack, metrics, remoteAppUrl);
+                        MqPackReplayer.replay(pack, metrics, remoteAppUrl, skipRegExp);
 
                         // 4. 重放成功後才加入 ACK 清單（失敗的訊息不 ACK，讓 Pub/Sub 重新投遞）
                         if (message.ackId() != null && !message.ackId().isEmpty()) {

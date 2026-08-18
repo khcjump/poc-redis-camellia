@@ -22,6 +22,9 @@ public class SyncProperties {
     /** 佇列 TTL（秒），套用於 PubSub retention 與 Kafka retention；RedisPubSub 不適用 */
     private long queueTtlSeconds = 30;
 
+    /** 跳過重放的 key 正則式：消費訊息時若 key 符合此正則式（find 語意），則不執行 replay（訊息仍會被 ACK）。空白表示不跳過 */
+    private String skipRegExp = "";
+
     /** 大小網切換防抖 */
     private SwitchConfig swtch = new SwitchConfig();
 
@@ -83,6 +86,14 @@ public class SyncProperties {
 
     public void setQueueTtlSeconds(long queueTtlSeconds) {
         this.queueTtlSeconds = queueTtlSeconds;
+    }
+
+    public String getSkipRegExp() {
+        return skipRegExp;
+    }
+
+    public void setSkipRegExp(String skipRegExp) {
+        this.skipRegExp = skipRegExp;
     }
 
     public SwitchConfig getSwtch() {

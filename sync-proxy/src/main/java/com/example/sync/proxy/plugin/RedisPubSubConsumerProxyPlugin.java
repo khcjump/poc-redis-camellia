@@ -24,18 +24,24 @@ public class RedisPubSubConsumerProxyPlugin implements ProxyPlugin {
     private final RedisPubSubBroker broker;
     private final QueueMetrics metrics;
     private final String remoteAppUrl;
+    private final String skipRegExp;
 
     private volatile boolean running = false;
     private Thread thread;
 
-    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics, String remoteAppUrl) {
+    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics, String remoteAppUrl, String skipRegExp) {
         this.broker = broker;
         this.metrics = metrics;
         this.remoteAppUrl = remoteAppUrl;
+        this.skipRegExp = skipRegExp;
+    }
+
+    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics, String remoteAppUrl) {
+        this(broker, metrics, remoteAppUrl, null);
     }
 
     public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics) {
-        this(broker, metrics, null);
+        this(broker, metrics, null, null);
     }
 
     @Override
@@ -60,7 +66,7 @@ public class RedisPubSubConsumerProxyPlugin implements ProxyPlugin {
             metrics.recordConsumed();
 
             // 2. 重放指令至遠端 App API 或本地 Redis
-            MqPackReplayer.replay(pack, metrics, remoteAppUrl);
+            MqPackReplayer.replay(pack, metrics, remoteAppUrl, skipRegExp);
         } catch (Exception e) {
             metrics.recordReplayFail();
         }
