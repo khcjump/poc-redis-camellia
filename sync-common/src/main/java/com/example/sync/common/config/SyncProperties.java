@@ -10,14 +10,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "sync")
 public class SyncProperties {
 
-    /** 出站佇列類型（本地 Gateway 主寫後發布的變更目標） */
-    private QueueType producerQueueType = QueueType.Kafka;
-
-    /** 入站佇列類型（SyncWorker 消費跨區變更的來源） */
-    private QueueType consumerQueueType = QueueType.Kafka;
+    /** 佇列類型（出站發布與入站消費之訊息佇列方案） */
+    private QueueType queueType = QueueType.Kafka;
 
     /** 本地 Redis 拓樸 */
     private RedisMode redisMode = RedisMode.Single;
+
+    /** 遠端 App API 位址（例: http://onprem-app:8081），用於佇列消費後跨區叫用 REST API 重放至遠端 Redis */
+    private String remoteAppUrl = "";
 
     /** 佇列 TTL（秒），套用於 PubSub retention 與 Kafka retention；RedisPubSub 不適用 */
     private long queueTtlSeconds = 30;
@@ -37,20 +37,28 @@ public class SyncProperties {
     /** Redis Pub/Sub（broker） */
     private RedisPubSubConfig redisPubSub = new RedisPubSubConfig();
 
+    public QueueType getQueueType() {
+        return queueType;
+    }
+
+    public void setQueueType(QueueType queueType) {
+        this.queueType = queueType;
+    }
+
     public QueueType getProducerQueueType() {
-        return producerQueueType;
+        return getQueueType();
     }
 
     public void setProducerQueueType(QueueType producerQueueType) {
-        this.producerQueueType = producerQueueType;
+        setQueueType(producerQueueType);
     }
 
     public QueueType getConsumerQueueType() {
-        return consumerQueueType;
+        return getQueueType();
     }
 
     public void setConsumerQueueType(QueueType consumerQueueType) {
-        this.consumerQueueType = consumerQueueType;
+        setQueueType(consumerQueueType);
     }
 
     public RedisMode getRedisMode() {
@@ -59,6 +67,14 @@ public class SyncProperties {
 
     public void setRedisMode(RedisMode redisMode) {
         this.redisMode = redisMode;
+    }
+
+    public String getRemoteAppUrl() {
+        return remoteAppUrl;
+    }
+
+    public void setRemoteAppUrl(String remoteAppUrl) {
+        this.remoteAppUrl = remoteAppUrl;
     }
 
     public long getQueueTtlSeconds() {

@@ -1,9 +1,11 @@
 # 雲地 Redis 資料同步 demo（camellia-sync）
 #
 # 拓樸：每 region 一個 Spring Boot 實例（跑 Camellia proxy + Gateway + SyncWorker + Console），
-#       一出站佇列、跨區消費。
-#   cloud-app  : producer=GcpPubSub(出站 cloud-pubsub)、consumer=Kafka(入站自 onprem-kafka)
-#   onprem-app : producer=Kafka(出站 onprem-kafka)、consumer=GcpPubSub(入站自 cloud-pubsub)
+#       一佇列方案（SYNC_QUEUE_TYPE）、跨區消費。
+#   cloud-app  : queue=GcpPubSub (出站與入站皆為 cloud-pubsub)
+#                叫用 onprem-app api, 以更新地端 onprem redis
+#   onprem-app : queue=Kafka (出站與入站皆為 onprem-kafka)
+#                叫用 cloud-app api, 以更新地端 cloud redis
 #
 # Redis 後端：
 #   雲端 = Memorystore 模擬（ReadWrite 讀寫分離，2 IP：write + read，read 複寫自 write）
@@ -53,8 +55,8 @@ services:
       SYNC_REDIS_READ_PORT: "6379"
       SYNC_REDIS_WRITE_HOST: cloud-redis-write
       SYNC_REDIS_WRITE_PORT: "6379"
-      SYNC_PRODUCER_QUEUE_TYPE: GcpPubSub
-      SYNC_CONSUMER_QUEUE_TYPE: Kafka
+      SYNC_QUEUE_TYPE: GcpPubSub
+      SYNC_REMOTE_APP_URL: http://onprem-app:8081
       SYNC_PUBSUB_HOST: http://cloud-pubsub:8085
       SYNC_PUBSUB_PROJECT_ID: camellia-sync-demo
       SYNC_PUBSUB_TOPIC: camellia-sync
@@ -123,8 +125,8 @@ services:
       REDIS_MODE: Sentinel
       SYNC_REDIS_SENTINEL_NODES: onprem-redis-sentinel-1:26379,onprem-redis-sentinel-2:26379,onprem-redis-sentinel-3:26379
       SYNC_REDIS_SENTINEL_MASTER: mymaster
-      SYNC_PRODUCER_QUEUE_TYPE: Kafka
-      SYNC_CONSUMER_QUEUE_TYPE: GcpPubSub
+      SYNC_QUEUE_TYPE: Kafka
+      SYNC_REMOTE_APP_URL: http://cloud-app:8080
       SYNC_PUBSUB_HOST: http://cloud-pubsub:8085
       SYNC_PUBSUB_PROJECT_ID: camellia-sync-demo
       SYNC_PUBSUB_TOPIC: camellia-sync

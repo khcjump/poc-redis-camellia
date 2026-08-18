@@ -10,15 +10,15 @@
         ┌───────────────────────────── Cloud ─────────────────────────────┐
         │  cloud-app (role=All)                                           │
         │   ├─ RedisGateway  → 主寫 cloud-redis  + 發佈 cloud-pubsub        │
-        │   ├─ SyncWorker    → 消費 onprem-kafka → 重放至 cloud-redis        │
+        │   ├─ SyncWorker    → 消費 cloud-pubsub → 叫用 onprem-app REST API │
         │   └─ Console       → REST API (:8080)                           │
         │  後端: cloud-redis-write / cloud-redis-read (ReadWrite 讀寫分離)    │
         └──────────────────────────────┬──────────────────────────────────┘
-                                        │  (跨區: GcpPubSub ⇄ Kafka)
+                                        │  (跨區叫用 API: /api/replay)
         ┌──────────────────────────────┴──────────────────────────────────┐
         │  onprem-app (role=All)                                          │
         │   ├─ RedisGateway  → 主寫 onprem-redis + 發佈 onprem-kafka        │
-        │   ├─ SyncWorker    → 消費 cloud-pubsub → 重放至 onprem-redis       │
+        │   ├─ SyncWorker    → 消費 onprem-kafka → 叫用 cloud-app REST API  │
         │   └─ Console       → REST API (:8081)                           │
         │  後端: onprem-redis master/replica + 3×sentinel (Sentinel 模式)    │
         └─────────────────────────────────────────────────────────────────┘
@@ -47,7 +47,7 @@ flowchart LR
         onpremApp --> onpremConsole
         onpremGateway --> onpremMaster
         onpremGateway -->|publish| onpremKafka
-        onpremWorker -->|replay| onpremMaster
+        onpremWorker -->|consume| onpremKafka
         onpremMaster --- onpremReplica
         onpremSentinel -. monitors .-> onpremMaster
         onpremSentinel -. monitors .-> onpremReplica
@@ -68,12 +68,12 @@ flowchart LR
         cloudGateway --> cloudWrite
         cloudGateway --> cloudRead
         cloudGateway -->|publish| cloudPubSub
-        cloudWorker -->|replay| cloudWrite
+        cloudWorker -->|consume| cloudPubSub
     end
     webui -->|REST proxy /cloud| cloudApp
     webui -->|REST proxy /onprem| onpremApp
-    cloudPubSub -->|cross-region consume| onpremWorker
-    onpremKafka -->|cross-region consume| cloudWorker
+    cloudWorker -->|cross-region REST API| onpremApp
+    onpremWorker -->|cross-region REST API| cloudApp
 
     classDef app fill:#e8f1ff,stroke:#356ae6,color:#10234f
     classDef queue fill:#fff4d6,stroke:#c58a00,color:#4a3300
@@ -83,10 +83,8 @@ flowchart LR
     class cloudWrite,cloudRead,onpremMaster,onpremReplica redis
 ```
 
-- **雙活 (active-active)**：兩區各自主寫本地 Redis，並把變更發佈到本地出站佇列；對端的
-  SyncWorker 消費後重放，達成雙向同步。
-- **每 region 一個出站佇列、跨區消費**：Cloud 出站用 **GcpPubSub**、OnPrem 出站用 **Kafka**，
-  同時示範兩種 message queue 方案。
+- **雙活 (active-active)**：兩區各自主寫本地 Redis，並把變更發佈到本地出站佇列；SyncWorker 消費本地出站佇列後，跨區叫用對端 REST API (`/api/replay`) 重放至對端 Redis，達成雙向同步。
+- **每 region 一個出站佇列、跨區 API 消費**：Cloud 出站與消費用 **GcpPubSub**、OnPrem 出站與消費用 **Kafka**，同時示範兩種 message queue 方案。
 - **單一 jar 多 role**：`APP_ROLE` 切換 `RedisGateway | SyncWorker | Console | All`。
 - **Camellia 擴充點掛接**（不重寫核心）：
   - `MqPackSender`（出站發送）×3 → `GcpPubSubMqPackSender` / `RedisPubSubMqPackSender` / `KafkaMqPackSender`
@@ -148,9 +146,8 @@ cd test-script
 |---|---|---|
 | `APP_ROLE` | `All` | `RedisGateway` / `SyncWorker` / `Console` / `All` |
 | `APP_LOCATION` | `Cloud` | `Cloud` / `OnPrem`（寫入 envelope 的 origin） |
-| `WEB_PORT` | `8080` | Web REST / Tomcat port |
-| `SYNC_PRODUCER_QUEUE_TYPE` | `Kafka` | 出站佇列 `GcpPubSub` / `RedisPubSub` / `Kafka` |
-| `SYNC_CONSUMER_QUEUE_TYPE` | `Kafka` | 入站佇列（同上三選一） |
+| `SYNC_QUEUE_TYPE` | `Kafka` | 佇列方案 `GcpPubSub` / `RedisPubSub` / `Kafka` |
+| `SYNC_REMOTE_APP_URL` | — | 遠端 App API 位址（跨區 REST API 重放目標，如 `http://onprem-app:8081`） |
 | `REDIS_MODE` | `Single` | `Single` / `Sentinel` / `ReadWrite` |
 | `REDIS_PROXY_PORT` | `6380` | Camellia Redis proxy port（`camellia-redis-proxy.config.port`） |
 | `CONSOLE_PORT` | `16379` | Camellia console port |

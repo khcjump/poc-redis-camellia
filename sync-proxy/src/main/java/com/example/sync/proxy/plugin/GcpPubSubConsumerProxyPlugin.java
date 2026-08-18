@@ -25,17 +25,23 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
     private final int pollMaxMessages;
     private final long pollIntervalMs;
     private final QueueMetrics metrics;
+    private final String remoteAppUrl;
 
     private volatile boolean running = false;
     private Thread thread;
 
-    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics) {
+    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics, String remoteAppUrl) {
         this.client = client;
         this.topic = config.getTopic();
         this.subscription = config.getSubscription();
         this.pollMaxMessages = config.getPollMaxMessages();
         this.pollIntervalMs = config.getPollIntervalMs();
         this.metrics = metrics;
+        this.remoteAppUrl = remoteAppUrl;
+    }
+
+    public GcpPubSubConsumerProxyPlugin(PubSubClient client, SyncProperties.PubSubConfig config, QueueMetrics metrics) {
+        this(client, config, metrics, null);
     }
 
     @Override
@@ -67,7 +73,7 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
                     try {
                         MqPack pack = MqPackSerializer.deserialize(message.data());
                         metrics.recordConsumed();
-                        MqPackReplayer.replay(pack, metrics);
+                        MqPackReplayer.replay(pack, metrics, remoteAppUrl);
                     } catch (Exception e) {
                         metrics.recordReplayFail();
                     }

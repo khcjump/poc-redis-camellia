@@ -47,46 +47,44 @@ public class MqIntegrationConfig {
         return new RedisPubSubBroker(props.getRedisPubSub());
     }
 
-    // --- producers (selected by sync.producer-queue-type) ---
+    // --- producers & consumers (selected by sync.queue-type) ---
 
     @Bean
-    @ConditionalOnProperty(name = "sync.producer-queue-type", havingValue = "GcpPubSub")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "GcpPubSub")
     public GcpPubSubMqPackSender gcpPubSubMqPackSender(PubSubClient client, SyncProperties props, QueueMetrics metrics) {
         return new GcpPubSubMqPackSender(client, props.getPubsub(), metrics);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "sync.producer-queue-type", havingValue = "RedisPubSub")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "RedisPubSub")
     public RedisPubSubMqPackSender redisPubSubMqPackSender(RedisPubSubBroker broker, QueueMetrics metrics) {
         return new RedisPubSubMqPackSender(broker, metrics);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "sync.producer-queue-type", havingValue = "Kafka")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "Kafka")
     public KafkaMqPackSender kafkaMqPackSender(SyncProperties props, QueueMetrics metrics) {
         return new KafkaMqPackSender(props.getKafka(), metrics);
     }
 
-    // --- consumers (selected by sync.consumer-queue-type) ---
-
     @Bean
-    @ConditionalOnProperty(name = "sync.consumer-queue-type", havingValue = "GcpPubSub")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "GcpPubSub")
     public GcpPubSubConsumerProxyPlugin gcpPubSubConsumerProxyPlugin(
             PubSubClient client, SyncProperties props, QueueMetrics metrics) {
-        return new GcpPubSubConsumerProxyPlugin(client, props.getPubsub(), metrics);
+        return new GcpPubSubConsumerProxyPlugin(client, props.getPubsub(), metrics, props.getRemoteAppUrl());
     }
 
     @Bean
-    @ConditionalOnProperty(name = "sync.consumer-queue-type", havingValue = "RedisPubSub")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "RedisPubSub")
     public RedisPubSubConsumerProxyPlugin redisPubSubConsumerProxyPlugin(
-            RedisPubSubBroker broker, QueueMetrics metrics) {
-        return new RedisPubSubConsumerProxyPlugin(broker, metrics);
+            RedisPubSubBroker broker, SyncProperties props, QueueMetrics metrics) {
+        return new RedisPubSubConsumerProxyPlugin(broker, metrics, props.getRemoteAppUrl());
     }
 
     @Bean
-    @ConditionalOnProperty(name = "sync.consumer-queue-type", havingValue = "Kafka")
+    @ConditionalOnProperty(name = "sync.queue-type", havingValue = "Kafka")
     public KafkaConsumerProxyPlugin kafkaConsumerProxyPlugin(SyncProperties props, QueueMetrics metrics) {
-        return new KafkaConsumerProxyPlugin(props.getKafka(), metrics);
+        return new KafkaConsumerProxyPlugin(props.getKafka(), metrics, props.getRemoteAppUrl());
     }
 
     // --- route + console ---

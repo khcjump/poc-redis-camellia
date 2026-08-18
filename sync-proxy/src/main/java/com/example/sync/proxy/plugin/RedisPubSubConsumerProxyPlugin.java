@@ -16,13 +16,19 @@ public class RedisPubSubConsumerProxyPlugin implements ProxyPlugin {
 
     private final RedisPubSubBroker broker;
     private final QueueMetrics metrics;
+    private final String remoteAppUrl;
 
     private volatile boolean running = false;
     private Thread thread;
 
-    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics) {
+    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics, String remoteAppUrl) {
         this.broker = broker;
         this.metrics = metrics;
+        this.remoteAppUrl = remoteAppUrl;
+    }
+
+    public RedisPubSubConsumerProxyPlugin(RedisPubSubBroker broker, QueueMetrics metrics) {
+        this(broker, metrics, null);
     }
 
     @Override
@@ -40,7 +46,7 @@ public class RedisPubSubConsumerProxyPlugin implements ProxyPlugin {
         try {
             MqPack pack = MqPackSerializer.deserialize(data);
             metrics.recordConsumed();
-            MqPackReplayer.replay(pack, metrics);
+            MqPackReplayer.replay(pack, metrics, remoteAppUrl);
         } catch (Exception e) {
             metrics.recordReplayFail();
         }

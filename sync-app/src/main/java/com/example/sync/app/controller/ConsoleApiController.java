@@ -106,6 +106,7 @@ public class ConsoleApiController {
         result.put("status", "UP");
         result.put("role", appProperties.getRole().name());
         result.put("location", appProperties.getLocation().name());
+        result.put("queueType", syncProperties.getQueueType().name());
         result.put("producerQueueType", syncProperties.getProducerQueueType().name());
         result.put("consumerQueueType", syncProperties.getConsumerQueueType().name());
         result.put("redisMode", syncProperties.getRedisMode().name());
@@ -116,6 +117,7 @@ public class ConsoleApiController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("role", appProperties.getRole().name());
         result.put("location", appProperties.getLocation().name());
+        result.put("queueType", syncProperties.getQueueType().name());
         result.put("producerQueueType", syncProperties.getProducerQueueType().name());
         result.put("consumerQueueType", syncProperties.getConsumerQueueType().name());
         result.put("redisMode", syncProperties.getRedisMode().name());
@@ -127,4 +129,25 @@ public class ConsoleApiController {
     public record WriteSessionRequest(String key, String value, Long ttlSeconds) {}
 
     public record ParamsRequest(Long queueTtlSeconds, Long minIntervalSeconds) {}
+
+    public record ReplayRequest(String payload) {}
+
+    /** 跨區 REST API 重放端點：接收 MqPack payload 並重放至本地 Redis */
+    @PostMapping("/replay")
+    public ResponseEntity<?> replay(@RequestBody ReplayRequest req) {
+        if (req.payload() == null || req.payload().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "payload is required"));
+        }
+        try {
+            byte[] bytes = java.util.Base64.getDecoder().decode(req.payload());
+            com.netease.nim.camellia.redis.proxy.mq.common.MqPack pack =
+                    com.netease.nim.camellia.redis.proxy.mq.common.MqPackSerializer.deserialize(bytes);
+            com.example.sync.proxy.plugin.MqPackReplayer.replayLocal(pack, queueMetrics);
+            return ResponseEntity.ok(Map.of("status", "ok"));
+        } catch (Exception e) {
+            queueMetrics.recordReplayFail();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "failed to replay: " + e.getMessage()));
+        }
+    }
 }

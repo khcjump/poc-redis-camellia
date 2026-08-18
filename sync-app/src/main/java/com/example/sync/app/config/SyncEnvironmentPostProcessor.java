@@ -40,24 +40,25 @@ public class SyncEnvironmentPostProcessor implements EnvironmentPostProcessor {
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         AppRole role = AppRole.valueOf(resolve(environment, "app.role", "APP_ROLE", AppRole.All.name()));
-        QueueType producer = QueueType.valueOf(
-                resolve(environment, "sync.producer-queue-type", "SYNC_PRODUCER_QUEUE_TYPE", QueueType.Kafka.name()));
-        QueueType consumer = QueueType.valueOf(
-                resolve(environment, "sync.consumer-queue-type", "SYNC_CONSUMER_QUEUE_TYPE", QueueType.Kafka.name()));
+        String queueTypeVal = resolve(environment, "sync.queue-type", "SYNC_QUEUE_TYPE", null);
+        if (queueTypeVal == null || queueTypeVal.isBlank()) {
+            queueTypeVal = resolve(environment, "sync.producer-queue-type", "SYNC_PRODUCER_QUEUE_TYPE", QueueType.Kafka.name());
+        }
+        QueueType queueType = QueueType.valueOf(queueTypeVal);
 
         List<String> pluginList = new ArrayList<>();
         if (role == AppRole.RedisGateway || role == AppRole.All) {
             pluginList.add(PRODUCER_PLUGIN);
         }
         if (role == AppRole.SyncWorker || role == AppRole.All) {
-            pluginList.add(CONSUMER_PLUGIN_PREFIX + consumerPluginClass(consumer));
+            pluginList.add(CONSUMER_PLUGIN_PREFIX + consumerPluginClass(queueType));
         }
         pluginList.add("monitorPlugin");
 
         Map<String, Object> injected = new HashMap<>();
         injected.put("camellia-redis-proxy.config.proxy.plugin.list", String.join(",", pluginList));
         injected.put("camellia-redis-proxy.config.mq.multi.write.sender.class.name",
-                SENDER_PREFIX + senderClass(producer));
+                SENDER_PREFIX + senderClass(queueType));
 
         MutablePropertySources sources = environment.getPropertySources();
         sources.addFirst(new MapPropertySource("syncEnvironmentPostProcessor", injected));

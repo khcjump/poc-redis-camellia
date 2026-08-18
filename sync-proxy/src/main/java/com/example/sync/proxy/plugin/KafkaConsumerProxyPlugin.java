@@ -26,13 +26,19 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
 
     private final SyncProperties.KafkaConfig config;
     private final QueueMetrics metrics;
+    private final String remoteAppUrl;
 
     private volatile boolean running = false;
     private Thread thread;
 
-    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics) {
+    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics, String remoteAppUrl) {
         this.config = config;
         this.metrics = metrics;
+        this.remoteAppUrl = remoteAppUrl;
+    }
+
+    public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics) {
+        this(config, metrics, null);
     }
 
     @Override
@@ -64,7 +70,7 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
                     try {
                         MqPack pack = MqPackSerializer.deserialize(record.value());
                         metrics.recordConsumed();
-                        MqPackReplayer.replay(pack, metrics);
+                        MqPackReplayer.replay(pack, metrics, remoteAppUrl);
                     } catch (Exception e) {
                         metrics.recordReplayFail();
                     }

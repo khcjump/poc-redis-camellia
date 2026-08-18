@@ -10,10 +10,8 @@ app:
   location: ${APP_LOCATION:Cloud}
 
 sync:
-  # outbound queue (local Gateway publishes changes here)
-  producer-queue-type: ${SYNC_PRODUCER_QUEUE_TYPE:Kafka}
-  # inbound queue (SyncWorker consumes cross-region changes from here)
-  consumer-queue-type: ${SYNC_CONSUMER_QUEUE_TYPE:Kafka}
+  # queue type (messaging queue scheme for both produce & consume)
+  queue-type: ${SYNC_QUEUE_TYPE:Kafka}
   redis-mode: ${REDIS_MODE:Single}
   queue-ttl-seconds: ${QUEUE_TTL_SECONDS:30}
   swtch:
