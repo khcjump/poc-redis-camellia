@@ -59,6 +59,45 @@ camellia-redis-proxy:
     monitor.interval.seconds: 5
     route.conf.provider: com.example.sync.proxy.route.RedisModeRouteConfProvider
 
+    # ── 客戶端入站連線上限 (Client-Side Incoming) ──────────────────────────────
+    # 同時接受的最大下游 Redis 客戶端連線數；超過此數新連線將收到 ERR 後立即斷開。
+    # -1 表示不限制（預設值）。此處設定初始值 100，可依需求調整。
+    # 對應 ConnectLimiter.max.client.connect（ProxyDynamicConf key）
+    max.client.connect: ${PROXY_MAX_CLIENT_CONNECT:100}
+
+    # idle 客戶端連線是否強制關閉（預設 false）
+    all.idle.client.connection.force.close.enable: ${PROXY_IDLE_CLIENT_FORCE_CLOSE:false}
+    reader.idle.client.connection.force.close.enable: ${PROXY_READER_IDLE_CLIENT_FORCE_CLOSE:false}
+
+    # ── Upstream 連線（Proxy → Redis 方向）─────────────────────────────────────
+    # upstream.work.thread：Netty Worker Thread 數，等於對每個 Redis addr 建立的持久連線數。
+    # 預設值 = CPU*2；設定後連線總數 = work.thread 數 × upstream Redis 節點數。
+    upstream.work.thread: ${PROXY_UPSTREAM_WORK_THREAD:8}
+
+    # TCP 連線建立逾時（毫秒）。Camellia 預設 1000ms。
+    upstream.connect.timeout.millis: ${PROXY_UPSTREAM_CONNECT_TIMEOUT_MS:3000}
+
+    # ── 心跳（Heartbeat）──────────────────────────────────────────────────────
+    # Proxy 每隔此秒數向 Upstream Redis 發送 PING 以維持長連線，並偵測失活節點。
+    # Camellia 預設 60s；縮短可更快偵測 Redis 異常，代價是略增 Redis 負擔。
+    upstream.heartbeat.interval.seconds: ${PROXY_UPSTREAM_HEARTBEAT_INTERVAL_S:30}
+    # PING 等待回應逾時（毫秒）。Camellia 預設 10000ms。
+    upstream.heartbeat.timeout.millis: ${PROXY_UPSTREAM_HEARTBEAT_TIMEOUT_MS:5000}
+
+    # ── Fast-Fail 保護（上游節點異常隔離）────────────────────────────────────
+    # 連續失敗幾次後暫時隔離該 Upstream 節點。Camellia 預設 5 次。
+    upstream.fail.count.threshold: ${PROXY_UPSTREAM_FAIL_COUNT_THRESHOLD:5}
+    # 隔離持續時間（毫秒）。Camellia 預設 5000ms（5 秒）。
+    upstream.fail.ban.millis: ${PROXY_UPSTREAM_FAIL_BAN_MS:5000}
+
+    # ── Idle 連線清理（避免長期空閒連線佔用 Redis maxclients）─────────────────
+    # 是否啟用空閒連線自動關閉。Camellia 預設 true（建議保持啟用）。
+    upstream.close.idle.connection: ${PROXY_UPSTREAM_CLOSE_IDLE:true}
+    # 連線閒置多久（秒）後判定為 idle。Camellia 預設 600s（10 分鐘）。
+    upstream.check.idle.connection.threshold.seconds: ${PROXY_UPSTREAM_IDLE_THRESHOLD_S:600}
+    # 判定 idle 後，延遲幾秒才真正關閉（緩衝期）。
+    upstream.close.idle.connection.delay.seconds: ${PROXY_UPSTREAM_IDLE_CLOSE_DELAY_S:60}
+
 management:
   endpoints:
     web:
