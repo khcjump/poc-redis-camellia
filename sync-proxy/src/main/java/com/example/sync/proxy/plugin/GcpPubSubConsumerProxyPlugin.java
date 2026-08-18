@@ -7,6 +7,8 @@ import com.netease.nim.camellia.redis.proxy.mq.common.MqPack;
 import com.netease.nim.camellia.redis.proxy.mq.common.MqPackSerializer;
 import com.netease.nim.camellia.redis.proxy.plugin.ProxyBeanFactory;
 import com.netease.nim.camellia.redis.proxy.plugin.ProxyPlugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +33,8 @@ import java.util.List;
  * <p>註冊為 Spring Bean；全名 (FQCN) 經由 {@code camellia-redis-proxy.config.proxy.plugin.list} 配置。</p>
  */
 public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
+
+    private static final Logger log = LoggerFactory.getLogger(GcpPubSubConsumerProxyPlugin.class);
 
     private final PubSubClient client;
     private final String topic;
@@ -78,6 +82,9 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
             client.ensureTopic(topic);
             client.ensureSubscription(topic, subscription);
         } catch (Exception e) {
+            // 初始化失敗記錄 log，消費執行緒停止
+            log.error("[GcpPubSubConsumer] 初始化 Topic/Subscription 失敗，消費執行緒停止: topic={}, sub={}", topic, subscription, e);
+            running = false;
             return;
         }
         while (running) {
@@ -86,9 +93,6 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
                 List<PubSubClient.PubSubMessage> messages = client.pull(subscription, pollMaxMessages);
                 List<String> ackIds = new ArrayList<>();
                 for (PubSubClient.PubSubMessage message : messages) {
-                    if (message.ackId() != null && !message.ackId().isEmpty()) {
-                        ackIds.add(message.ackId());
-                    }
                     try {
                         // 2. 反序列化 MqPack（包含原 Redis 命令物件）
                         MqPack pack = MqPackSerializer.deserialize(message.data());
@@ -96,18 +100,26 @@ public class GcpPubSubConsumerProxyPlugin implements ProxyPlugin {
 
                         // 3. 呼叫重放器發送至遠端 App API 或本地 Redis 主庫
                         MqPackReplayer.replay(pack, metrics, remoteAppUrl);
+
+                        // 4. 重放成功後才加入 ACK 清單（失敗的訊息不 ACK，讓 Pub/Sub 重新投遞）
+                        if (message.ackId() != null && !message.ackId().isEmpty()) {
+                            ackIds.add(message.ackId());
+                        }
                     } catch (Exception e) {
+                        // 重放失敗：不加入 ackIds，讓該訊息被 Pub/Sub nack 後重投遞
                         metrics.recordReplayFail();
+                        log.warn("[GcpPubSubConsumer] 訊息重放失敗，將由 Pub/Sub 重新投遞", e);
                     }
                 }
 
-                // 4. 若無訊息則休眠，否則回傳 ACK 批次確認
-                if (ackIds.isEmpty()) {
+                // 5. 若無訊息則休眠，否則批次 ACK 成功訊息
+                if (messages.isEmpty()) {
                     sleep(pollIntervalMs);
-                } else {
+                } else if (!ackIds.isEmpty()) {
                     client.acknowledge(subscription, ackIds);
                 }
             } catch (Exception e) {
+                log.warn("[GcpPubSubConsumer] Pull 異常，等待後重試", e);
                 sleep(pollIntervalMs);
             }
         }

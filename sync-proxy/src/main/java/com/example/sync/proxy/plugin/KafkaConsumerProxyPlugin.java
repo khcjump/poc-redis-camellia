@@ -10,8 +10,11 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -38,11 +41,14 @@ import java.util.Properties;
  */
 public class KafkaConsumerProxyPlugin implements ProxyPlugin {
 
+    private static final Logger log = LoggerFactory.getLogger(KafkaConsumerProxyPlugin.class);
+
     private final SyncProperties.KafkaConfig config;
     private final QueueMetrics metrics;
     private final String remoteAppUrl;
 
     private volatile boolean running = false;
+    private volatile KafkaConsumer<String, byte[]> consumer;
     private Thread thread;
 
     public KafkaConsumerProxyPlugin(SyncProperties.KafkaConfig config, QueueMetrics metrics, String remoteAppUrl) {
@@ -80,11 +86,12 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
         props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        try (KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<>(props)) {
+        consumer = new KafkaConsumer<>(props);
+        try {
             consumer.subscribe(Collections.singletonList(config.getTopic()));
             while (running) {
                 // 1. 從 Kafka 批次 Poll 訊息
-                ConsumerRecords<String, byte[]> records = consumer.poll(Duration.ofMillis(100));
+                ConsumerRecords<String, byte[]> records = consumer.poll(Duration.ofMillis(500));
                 for (ConsumerRecord<String, byte[]> record : records) {
                     try {
                         // 2. 反序列化 MqPack（包含原 Redis 命令物件）
@@ -95,9 +102,25 @@ public class KafkaConsumerProxyPlugin implements ProxyPlugin {
                         MqPackReplayer.replay(pack, metrics, remoteAppUrl);
                     } catch (Exception e) {
                         metrics.recordReplayFail();
+                        log.warn("[KafkaConsumer] 訊息重放失敗", e);
                     }
                 }
             }
+        } catch (WakeupException e) {
+            // 正常關機信號（由 stop() 呼叫 wakeup() 觸發）
+            log.info("[KafkaConsumer] 收到 wakeup 信號，執行緒正常停止");
+        } finally {
+            consumer.close();
+            log.info("[KafkaConsumer] KafkaConsumer 已關閉");
+        }
+    }
+
+    /** 停止消費（如需外部呼叫）。 */
+    public void stop() {
+        running = false;
+        KafkaConsumer<String, byte[]> c = consumer;
+        if (c != null) {
+            c.wakeup();
         }
     }
 }

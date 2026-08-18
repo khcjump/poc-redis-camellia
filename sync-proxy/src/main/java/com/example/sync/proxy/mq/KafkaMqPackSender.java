@@ -11,6 +11,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,11 +66,11 @@ public class KafkaMqPackSender implements MqPackSender {
         // 1. 序列化 MqPack
         byte[] data = MqPackSerializer.serialize(pack);
 
-        // 2. 提取第一個 Redis Key 作為 Kafka Partition Key (保序)
+        // 2. 提取第一個 Redis Key 作為 Kafka Partition Key (保序)，明確指定 UTF-8
         String key = null;
         List<byte[]> keys = pack.getCommand().getKeys();
         if (keys != null && !keys.isEmpty()) {
-            key = new String(keys.get(0));
+            key = new String(keys.get(0), StandardCharsets.UTF_8);
         }
 
         ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, key, data);

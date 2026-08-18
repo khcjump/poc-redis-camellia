@@ -1,6 +1,8 @@
 package com.example.sync.proxy.plugin;
 
 import com.example.sync.common.metrics.QueueMetrics;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netease.nim.camellia.redis.proxy.conf.GlobalRedisProxyEnv;
 import com.netease.nim.camellia.redis.proxy.monitor.CommandFailMonitor;
 import com.netease.nim.camellia.redis.proxy.mq.common.MqPack;
@@ -44,6 +46,8 @@ public final class MqPackReplayer {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+    /** 使用共享 ObjectMapper 建構 JSON，避免手工拼接字串造成格式破損 */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private MqPackReplayer() {
     }
@@ -67,9 +71,13 @@ public final class MqPackReplayer {
             // 1. 將 MqPack 序列化並編碼為 Base64
             byte[] bytes = MqPackSerializer.serialize(pack);
             String base64Payload = Base64.getEncoder().encodeToString(bytes);
-            String jsonBody = "{\"payload\":\"" + base64Payload + "\"}";
 
-            // 2. 構建 HTTP POST /api/replay 請求
+            // 2. 使用 ObjectMapper 安全構建 JSON body（避免手工拼接導致特殊字元破壞 JSON）
+            ObjectNode bodyNode = MAPPER.createObjectNode();
+            bodyNode.put("payload", base64Payload);
+            String jsonBody = MAPPER.writeValueAsString(bodyNode);
+
+            // 3. 構建 HTTP POST /api/replay 請求
             String targetUrl = remoteAppUrl.replaceAll("/+$", "") + "/api/replay";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(targetUrl))

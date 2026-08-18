@@ -43,8 +43,6 @@ public class SyncConsoleService extends ConsoleServiceAdaptor {
             payload.put("role", appProperties.getRole().name());
             payload.put("location", appProperties.getLocation().name());
             payload.put("queueType", syncProperties.getQueueType().name());
-            payload.put("producerQueueType", syncProperties.getProducerQueueType().name());
-            payload.put("consumerQueueType", syncProperties.getConsumerQueueType().name());
             payload.put("redisMode", syncProperties.getRedisMode().name());
             payload.put("metrics", metrics.snapshot());
             return ConsoleResult.success(MAPPER.writeValueAsString(payload));
