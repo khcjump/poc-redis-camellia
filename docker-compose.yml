@@ -38,7 +38,7 @@ services:
 
   # GCP Pub/Sub emulator（雲端出站佇列）
   cloud-pubsub:
-    image: google/cloud-sdk:emulators
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     ports: ["8085:8085"]
 
