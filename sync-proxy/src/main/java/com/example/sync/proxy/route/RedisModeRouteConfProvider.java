@@ -8,16 +8,24 @@ import com.netease.nim.camellia.redis.proxy.auth.ClientIdentity;
 import com.netease.nim.camellia.redis.proxy.route.RouteConfProvider;
 
 /**
- * 依 {@link RedisMode} 產生 Camellia route.conf 字串。
+ * Camellia 路由動態提供者（Redis Mode RouteConfProvider）：
+ * 
+ * <h3>資料流程與架構腳色：</h3>
+ * <ol>
+ *   <li><b>Proxy 路由初始化</b>：
+ *       Camellia Redis Proxy 啟動時，會向此 Provider 查詢當前的 Upstream Redis 路由規則（{@link #getRouteConfig}）。
+ *   </li>
+ *   <li><b>多架構動態適配 (RedisMode)</b>：
+ *       根據環境變數配置的 {@link RedisMode} 動態產生 Camellia 標準 Route JSON 或 URI 格式：
+ *       <ul>
+ *         <li><b>Single 模式</b>： {@code redis://@host:port}（單節點直連）。</li>
+ *         <li><b>Sentinel 模式</b>： {@code redis-sentinel://@sentinel_nodes/master_name}（高可用哨兵集群）。</li>
+ *         <li><b>ReadWrite 模式</b>： 產生 {@code rw_separate} JSON，將寫入指令（SET/HSET/ZADD）導向寫庫（Write Node），讀取指令（GET/HGET/ZRANGE）導向讀庫（Read Node）。</li>
+ *       </ul>
+ *   </li>
+ * </ol>
  *
- * <ul>
- *   <li>Single → {@code redis://[pass@]host:port}</li>
- *   <li>Sentinel → {@code redis-sentinel://[pass@]node1:26379,node2:26379/master}</li>
- *   <li>ReadWrite → rw_separate JSON（讀寫分離雙 IP）</li>
- * </ul>
- *
- * <p>由 {@code camellia-redis-proxy.config.route.conf.provider} 指向本類 FQCN，
- * ConfigInitUtil 經 SpringProxyBeanFactory.getBean 解析（須註冊為 Spring bean）。</p>
+ * <p>註冊為 Spring Bean；全名 (FQCN) 經由 {@code camellia-redis-proxy.config.route.conf.provider} 配置。</p>
  */
 public class RedisModeRouteConfProvider extends RouteConfProvider {
 
@@ -56,6 +64,9 @@ public class RedisModeRouteConfProvider extends RouteConfProvider {
         return false;
     }
 
+    /**
+     * 依據 RedisMode 產生對應的 Camellia 路由字串或 JSON
+     */
     private String buildRouteConf() {
         switch (mode) {
             case Sentinel:
@@ -79,6 +90,9 @@ public class RedisModeRouteConfProvider extends RouteConfProvider {
         return "redis-sentinel://" + auth + redis.getSentinelNodes() + "/" + redis.getSentinelMaster();
     }
 
+    /**
+     * 產生讀寫分離 (Read/Write Separation) 的 Camellia 路由 JSON
+     */
     private String rwSeparateJson() {
         ObjectNode op = MAPPER.createObjectNode();
         op.put("type", "rw_separate");

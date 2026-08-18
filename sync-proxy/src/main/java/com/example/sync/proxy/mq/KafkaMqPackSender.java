@@ -16,9 +16,23 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 自建 Kafka MqPackSender：以 kafka-clients 3.9 直接送，補足 Camellia 內建 sender 缺 MQ 指標的缺口。
+ * Kafka 出站發送器（Outbound MqPackSender）：
+ * 
+ * <h3>資料流程與架構腳色：</h3>
+ * <ol>
+ *   <li><b>寫入攔截 (Write Interception)</b>：
+ *       Camellia Redis Proxy 收到用戶 Redis 寫入命令後，將 {@link MqPack} 送至此發送器。
+ *   </li>
+ *   <li><b>Partition Key 提取（保序）</b>：
+ *       提取命令第一個 Redis Key 當作 Kafka Message Key（{@code pack.getCommand().getKeys().get(0)}），
+ *       確保**同一 Redis Key 的所有修改都會分發至同一個 Kafka Partition**，保障強順序性。
+ *   </li>
+ *   <li><b>非同步發送與 Callback</b>：
+ *       呼叫 {@link KafkaProducer#send} 非同步發送，並在 Completion Callback 中更新 In-Flight 數量與 {@link QueueMetrics}。
+ *   </li>
+ * </ol>
  *
- * <p>以命令首 key 當分區 key 保序（同 key 同分區）；非阻塞 {@code send} + callback 更新 in-flight 與計數。</p>
+ * <p>註冊為 Spring Bean；全名 (FQCN) 經由 {@code camellia-redis-proxy.config.mq.multi.write.sender.class.name} 配置。</p>
  */
 public class KafkaMqPackSender implements MqPackSender {
 
@@ -48,14 +62,20 @@ public class KafkaMqPackSender implements MqPackSender {
 
     @Override
     public boolean send(MqPack pack) throws Exception {
+        // 1. 序列化 MqPack
         byte[] data = MqPackSerializer.serialize(pack);
+
+        // 2. 提取第一個 Redis Key 作為 Kafka Partition Key (保序)
         String key = null;
         List<byte[]> keys = pack.getCommand().getKeys();
         if (keys != null && !keys.isEmpty()) {
             key = new String(keys.get(0));
         }
+
         ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, key, data);
         inFlight.incrementAndGet();
+
+        // 3. 非同步發送至 Kafka 并設定 Completion Callback
         producer.send(record, (metadata, ex) -> {
             inFlight.decrementAndGet();
             if (ex != null) {

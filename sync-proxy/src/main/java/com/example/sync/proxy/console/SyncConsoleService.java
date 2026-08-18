@@ -12,9 +12,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 自訂 ConsoleService：在 {@code /custom} 端點輸出 MQ 同步指標（補足 Camellia 缺 MQ 指標的缺口）。
- *
- * <p>ConsoleResult 只接受 String payload，故以 Jackson 序列化 JSON。</p>
+ * Camellia Console 自訂服務適配器（SyncConsoleService）：
+ * 
+ * <h3>資料流程與架構腳色：</h3>
+ * <ul>
+ *   <li><b>Console 端點監控</b>： 擴充 Camellia 內建 console 的 HTTP REST 端點。</li>
+ *   <li><b>指標快照與 JSON 輸出</b>： 當調用 {@code GET /custom} 時，快照當前的 {@link QueueMetrics}
+ *       與全域組態資訊（角色、地區、佇列型態、Redis 模式）並回傳 JSON 格式字串。
+ *   </li>
+ * </ul>
  */
 public class SyncConsoleService extends ConsoleServiceAdaptor {
 
