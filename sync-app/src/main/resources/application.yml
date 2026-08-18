@@ -63,7 +63,7 @@ camellia-redis-proxy:
     # 同時接受的最大下游 Redis 客戶端連線數；超過此數新連線將收到 ERR 後立即斷開。
     # -1 表示不限制（預設值）。此處設定初始值 100，可依需求調整。
     # 對應 ConnectLimiter.max.client.connect（ProxyDynamicConf key）
-    max.client.connect: ${PROXY_MAX_CLIENT_CONNECT:100}
+    max.client.connect: ${PROXY_MAX_CLIENT_CONNECT:-1}
 
     # idle 客戶端連線是否強制關閉（預設 false）
     all.idle.client.connection.force.close.enable: ${PROXY_IDLE_CLIENT_FORCE_CLOSE:false}
@@ -75,7 +75,7 @@ camellia-redis-proxy:
     upstream.work.thread: ${PROXY_UPSTREAM_WORK_THREAD:8}
 
     # TCP 連線建立逾時（毫秒）。Camellia 預設 1000ms。
-    upstream.connect.timeout.millis: ${PROXY_UPSTREAM_CONNECT_TIMEOUT_MS:3000}
+    upstream.connect.timeout.millis: ${PROXY_UPSTREAM_CONNECT_TIMEOUT_MS:1000}
 
     # ── 心跳（Heartbeat）──────────────────────────────────────────────────────
     # Proxy 每隔此秒數向 Upstream Redis 發送 PING 以維持長連線，並偵測失活節點。
