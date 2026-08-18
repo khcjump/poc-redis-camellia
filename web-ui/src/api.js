@@ -58,6 +58,12 @@ export const api = {
   writeSession: (region, { key, value, ttlSeconds }) =>
     http('POST', region, '/api/session', { body: { key, value, ttlSeconds } }),
   compare: (region, key) => http('GET', region, '/api/compare', { query: { key } }),
+  writeHash: (region, { key, field, value }) =>
+    http('POST', region, '/api/hash', { body: { key, field, value } }),
+  getHash: (region, key) => http('GET', region, '/api/hash', { query: { key } }),
+  writeZSet: (region, { key, member, score }) =>
+    http('POST', region, '/api/zset', { body: { key, member, score } }),
+  getZSet: (region, key) => http('GET', region, '/api/zset', { query: { key } }),
   getSwitch: (region) => http('GET', region, '/api/switch'),
   switchTo: (region, to) => http('POST', region, '/api/switch', { query: { to } }),
   getParams: (region) => http('GET', region, '/api/params'),

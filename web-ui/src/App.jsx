@@ -3,6 +3,8 @@ import { Panel, RegionTag, StatusDot, Alert, Btn, Segmented, fmtMs } from './com
 import { api, usePoll, ApiError } from './api.js'
 import StatusBar from './components/StatusBar.jsx'
 import WriteSession from './components/WriteSession.jsx'
+import HashPanel from './components/HashPanel.jsx'
+import ZSetPanel from './components/ZSetPanel.jsx'
 import SwitchPanel from './components/SwitchPanel.jsx'
 import ComparePanel from './components/ComparePanel.jsx'
 import QueuePanel from './components/QueuePanel.jsx'
@@ -43,23 +45,31 @@ export default function App() {
 
         <div className="spacer" />
 
-        {/* 4. Compare panel (full width) */}
+        {/* 4. Hash Panel & 5. ZSet Panel */}
+        <div className="grid">
+          <HashPanel />
+          <ZSetPanel />
+        </div>
+
+        <div className="spacer" />
+
+        {/* 6. Compare panel (full width) */}
         <ComparePanel onLatency={setLastLatency} />
 
         <div className="spacer" />
 
-        {/* 5. Queue metrics (two columns) */}
+        {/* 7. Queue metrics (two columns) */}
         <QueuePanel />
 
         <div className="spacer" />
 
-        {/* 6. Async update stress test (full width) */}
+        {/* 8. Async update stress test (full width) */}
         <div className="spacer" />
         <StressPanel />
 
         <div className="spacer" />
 
-        {/* 7. Params (two columns) */}
+        {/* 9. Params (two columns) */}
         <ParamsPanel />
 
         <footer className="app__footer">

@@ -30,6 +30,7 @@ export default function StressPanel() {
   const [source, setSource] = useState('cloud')     // which region we WRITE to
   const [size, setSize] = useState(10)
   const [mode, setMode] = useState('sequential')    // 'sequential' | 'concurrent'
+  const [dataType, setDataType] = useState('session') // 'session' | 'hash' | 'zset'
   const [running, setRunning] = useState(false)
   const [phase, setPhase] = useState('idle')
   const [submitted, setSubmitted] = useState(0)
@@ -53,7 +54,7 @@ export default function StressPanel() {
     setSubmitErrors(0)
 
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    const prefix = `stress.${id}`
+    const prefix = `stress.${dataType}.${id}`
     const submitTs = new Array(size).fill(null)  // browser wall-clock at each successful submit
     let errs = 0
     const t0 = performance.now()
@@ -65,7 +66,13 @@ export default function StressPanel() {
     // ---- submit phase (synchronous writes to SOURCE region) ----
     const writeOne = async (i) => {
       try {
-        await api.writeSession(source, { key: `${prefix}.${i}`, value: `v${id}.${i}`, ttlSeconds: TTL_SECONDS })
+        if (dataType === 'hash') {
+          await api.writeHash(source, { key: `${prefix}.${i}`, field: `field_${i}`, value: `v${id}.${i}` })
+        } else if (dataType === 'zset') {
+          await api.writeZSet(source, { key: `${prefix}.${i}`, member: `member_${i}`, score: i * 1.5 })
+        } else {
+          await api.writeSession(source, { key: `${prefix}.${i}`, value: `v${id}.${i}`, ttlSeconds: TTL_SECONDS })
+        }
         submitTs[i] = Date.now()
       } catch {
         errs += 1
@@ -117,12 +124,30 @@ export default function StressPanel() {
           const i = pending[p++]
           if (i === undefined) return
           try {
-            const c = await api.compare(remote, `${prefix}.${i}`)
-            if (c && c.exists && String(c.origin || '').toLowerCase() === source) {
-              confirmedFlag[i] = true
-              confirmCount += 1
-              lagMs.push(Date.now() - submitTs[i])
-              setConfirmed(confirmCount)
+            if (dataType === 'hash') {
+              const c = await api.getHash(remote, `${prefix}.${i}`)
+              if (c && c.exists && c.fields && c.fields[`field_${i}`] && String(c.fields[`field_${i}`].origin || '').toLowerCase() === source) {
+                confirmedFlag[i] = true
+                confirmCount += 1
+                lagMs.push(Date.now() - submitTs[i])
+                setConfirmed(confirmCount)
+              }
+            } else if (dataType === 'zset') {
+              const c = await api.getZSet(remote, `${prefix}.${i}`)
+              if (c && c.exists && c.members && c.members.length > 0 && String(c.members[0].origin || '').toLowerCase() === source) {
+                confirmedFlag[i] = true
+                confirmCount += 1
+                lagMs.push(Date.now() - submitTs[i])
+                setConfirmed(confirmCount)
+              }
+            } else {
+              const c = await api.compare(remote, `${prefix}.${i}`)
+              if (c && c.exists && String(c.origin || '').toLowerCase() === source) {
+                confirmedFlag[i] = true
+                confirmCount += 1
+                lagMs.push(Date.now() - submitTs[i])
+                setConfirmed(confirmCount)
+              }
             }
           } catch { /* transient compare error; retry next round */ }
         }
@@ -150,6 +175,7 @@ export default function StressPanel() {
       remote,
       size,
       mode,
+      dataType,
       submitDurationMs: Math.round(tSubmitEnd - t0),
       drainDurationMs: Math.round(tEnd - tSubmitEnd),
       totalDurationMs: Math.round(tEnd - t0),
@@ -184,10 +210,22 @@ export default function StressPanel() {
     <Panel
       title="非同步更新壓力測試"
       en="Async Update Stress"
-      right={<span className="meta-pill">10 / 100 / 1000 updates</span>}
+      right={<span className="meta-pill">Session / Hash / ZSet</span>}
     >
       <div className="stack">
-        <div className="form-row form-row--3">
+        <div className="form-row form-row--4">
+          <div className="field">
+            <label className="field__label">資料結構 type</label>
+            <Segmented
+              value={dataType}
+              onChange={setDataType}
+              options={[
+                { value: 'session', label: 'Session' },
+                { value: 'hash', label: 'Hash' },
+                { value: 'zset', label: 'ZSet' },
+              ]}
+            />
+          </div>
           <div className="field">
             <label className="field__label">寫入來源 write to</label>
             <Segmented
@@ -223,14 +261,14 @@ export default function StressPanel() {
         <div className="row row--between row--wrap">
           <div className="row">
             <Btn variant="primary" disabled={running} onClick={run}>
-              {running ? '執行中…' : `執行 Run (${size})`}
+              {running ? '執行中…' : `執行 Run (${dataType} × ${size})`}
             </Btn>
             <Btn variant="ghost" onClick={reset}>清除 Reset</Btn>
           </div>
           <span className="faint mono" style={{ fontSize: 11 }}>
             {running
               ? `${PHASE_LABEL[phase]} · submitted ${submitted}/${size} · confirmed ${confirmed}/${size} · errors ${submitErrors}`
-              : `寫入 ${source} → 非同步同步至 ${remote}（key 自帶 TTL ${TTL_SECONDS}s）`}
+              : `寫入 ${dataType} 至 ${source} → 非同步同步至 ${remote}`}
           </span>
         </div>
 
@@ -258,6 +296,7 @@ export default function StressPanel() {
                 <thead>
                   <tr>
                     <th>時間</th>
+                    <th>型態</th>
                     <th>來源→對端</th>
                     <th>筆數</th>
                     <th>模式</th>
@@ -273,6 +312,7 @@ export default function StressPanel() {
                   {results.map((r) => (
                     <tr key={r.id}>
                       <td className="mono">{fmtTime(r.ts)}</td>
+                      <td className="mono" style={{ color: 'var(--accent)' }}>{r.dataType}</td>
                       <td className="mono">{r.source} → {r.remote}</td>
                       <td className="mono">{r.size}</td>
                       <td className="mono">{r.mode === 'sequential' ? 'seq' : 'conc'}</td>

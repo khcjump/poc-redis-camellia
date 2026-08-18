@@ -132,6 +132,35 @@ public class ConsoleApiController {
 
     public record ReplayRequest(String payload) {}
 
+    public record WriteHashRequest(String key, String field, String value) {}
+
+    public record WriteZSetRequest(String key, String member, Double score) {}
+
+    /** 寫入 Hash */
+    @PostMapping("/hash")
+    public Map<String, Object> writeHash(@RequestBody WriteHashRequest req) {
+        return syncService.writeHash(req.key(), req.field(), req.value());
+    }
+
+    /** 讀取 / 比對 Hash */
+    @GetMapping("/hash")
+    public Map<String, Object> readHash(@RequestParam("key") String key) {
+        return syncService.readHash(key);
+    }
+
+    /** 寫入 Sorted Set (ZSet) */
+    @PostMapping("/zset")
+    public Map<String, Object> writeZSet(@RequestBody WriteZSetRequest req) {
+        double score = req.score() != null ? req.score() : 0.0;
+        return syncService.writeZSet(req.key(), req.member(), score);
+    }
+
+    /** 讀取 / 比對 Sorted Set (ZSet) */
+    @GetMapping("/zset")
+    public Map<String, Object> readZSet(@RequestParam("key") String key) {
+        return syncService.readZSet(key);
+    }
+
     /** 跨區 REST API 重放端點：接收 MqPack payload 並重放至本地 Redis */
     @PostMapping("/replay")
     public ResponseEntity<?> replay(@RequestBody ReplayRequest req) {

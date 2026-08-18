@@ -113,6 +113,7 @@ docker compose up -d --build
 | 服務 | 位址 | 說明 |
 |---|---|---|
 | web-ui | http://localhost:3000 | 操作 + 檢查介面 |
+| redis-commander | http://localhost:8082 | Redis 內容可視化 GUI（預設已連線兩端 Redis 與 Proxy） |
 | cloud-app | http://localhost:8080 | Cloud region REST API（Redis proxy :6380、console :16379） |
 | onprem-app | http://localhost:8086 | OnPrem region REST API（容器內 8081，宿主映射 8086；Redis proxy :6381、console :16380） |
 | onprem-kafka | localhost:9092 | 地端出站佇列（KRaft） |

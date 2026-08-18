@@ -12,6 +12,7 @@ TESTS=(
   test-05-switch-debounce
   test-06-queue-metrics
   test-07-webui
+  test-08-hash-zset
 )
 
 passed=0
