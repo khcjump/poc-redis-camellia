@@ -50,5 +50,12 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
         </dependency>
+
+        <!-- Apache HttpClient 5：支援連線池（PoolingHttpClientConnectionManager），
+             版本由 spring-boot-starter-parent 統一管理 -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
     </dependencies>
 </project>
