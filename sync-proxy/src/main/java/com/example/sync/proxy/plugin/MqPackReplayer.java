@@ -87,8 +87,8 @@ public final class MqPackReplayer {
     static {
         CONN_MANAGER = PoolingHttpClientConnectionManagerBuilder.create()
                 .setConnectionTimeToLive(TimeValue.ofSeconds(60)) // timeToLive：連線存活上限 60 秒
-                .setMaxPools(50) // 全局連線池上限 (equivalent to setMaxTotal)
-                .setDefaultMaxPerRoute(20) // 同一 host 的最大連線數
+                .setMaxConnTotal(50) // 全局連線池上限
+                .setMaxConnPerRoute(20) // 同一 host 的最大連線數
                 .build();
 
         RequestConfig requestConfig =
