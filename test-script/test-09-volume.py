@@ -77,12 +77,15 @@ def thread_worker(host: str, port: int, cmd_name: str,
                   shared_counter: list, worker_id: int):
     """
     每個執行緒維護一條獨立的 Redis 連線（non-blocking_pool=False，直連），
-    用 pipeline 批量送出指令以最大化吞吐量。
+    用 pipeline 批量送出指令以最大化吸吐量。
+
+    注：強制 protocol=2（RESP2）避免 redis-py 8.x 預設 RESP3 HELLO 与 Camellia Proxy 的相容性問題。
     """
     cmd_fn = COMMANDS[cmd_name]
     try:
         r = redis.Redis(host=host, port=port, socket_connect_timeout=3,
-                        socket_timeout=5, decode_responses=False)
+                        socket_timeout=5, decode_responses=False,
+                        protocol=2)   # RESP2: 相容 Camellia Proxy 及原生 Redis
         r.ping()
     except Exception as e:
         print(f"  [Thread-{worker_id}] 連線失敗: {e}", flush=True)
@@ -240,7 +243,8 @@ def main():
 
     # 連線前檢查
     try:
-        r = redis.Redis(host=host, port=port, socket_connect_timeout=3)
+        # protocol=2: 強制 RESP2，相容 Camellia Proxy（其 HELLO 回應格式與 redis-py 8.x RESP3 期望不符）
+        r = redis.Redis(host=host, port=port, socket_connect_timeout=3, protocol=2)
         info_server = r.info("server")
         info_memory = r.info("memory")
         info_clients = r.info("clients")
@@ -290,7 +294,7 @@ def main():
 
     # 測試後查看 Redis info
     try:
-        r = redis.Redis(host=host, port=port, socket_connect_timeout=3)
+        r = redis.Redis(host=host, port=port, socket_connect_timeout=3, protocol=2)
         info_memory = r.info("memory")
         info_clients = r.info("clients")
         info_stat   = r.info("stats")
