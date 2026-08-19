@@ -15,6 +15,7 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.StringEntity;
@@ -28,7 +29,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -90,11 +91,12 @@ public final class MqPackReplayer {
     private static final CloseableHttpClient HTTP_CLIENT;
 
     static {
-        CONN_MANAGER = new PoolingHttpClientConnectionManager(
-                60, TimeUnit.SECONDS   // timeToLive：連線存活上限 60 秒
-        );
-        CONN_MANAGER.setMaxTotal(50);          // 全局連線池上限
-        CONN_MANAGER.setDefaultMaxPerRoute(20); // 同一 host 的最大連線數
+        // 使用 Builder API 建構，正確設定 timeToLive + maxTotal + maxPerRoute
+        CONN_MANAGER = PoolingHttpClientConnectionManagerBuilder.create()
+                .setConnectionTimeToLive(TimeValue.ofSeconds(60)) // 連線存活上限 60 秒
+                .setMaxConnTotal(50)                               // 全局連線池上限
+                .setMaxConnPerRoute(20)                            // 同一 host 的最大並行連線數
+                .build();
 
         RequestConfig requestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(Timeout.ofSeconds(3))  // 等候連線池空位超時
@@ -105,7 +107,7 @@ public final class MqPackReplayer {
         HTTP_CLIENT = HttpClients.custom()
                 .setConnectionManager(CONN_MANAGER)
                 .setDefaultRequestConfig(requestConfig)
-                // 每隔 30 秒清理 expired 或超過 idle 時間的連線，防止連線池中積累 stale 連線
+                // 清理 expired 或闲置超過 30 秒的連線，防止連線池中積累 stale 連線
                 .evictExpiredConnections()
                 .evictIdleConnections(TimeValue.ofSeconds(30))
                 .build();
@@ -113,9 +115,14 @@ public final class MqPackReplayer {
         log.info("[MqPackReplayer] HTTP 連線池初始化完成：maxTotal=50, maxPerRoute=20, connTTL=60s");
     }
 
-    /** skipRegExp 的編譯快取（key 為原始正則字串），避免每筆訊息重複編譯 */
-    private static volatile String cachedSkipRegExp = "";
-    private static volatile Pattern cachedSkipPattern;
+    // ── skipRegExp 編譯快取：使用 AtomicReference 封裝 (key, Pattern) pair，避免雙 volatile 欄位更新非原子導致的 Race Condition ──
+    /**
+     * 封裝正則字串與編譯結果的不可變 pair。
+     * 經由 {@link AtomicReference} 提供對兩個欄位的原子更新語群，消除雙 volatile 分別寫入的競爭條件。
+     */
+    private record CachedPattern(String regExp, Pattern pattern) {}
+    private static final AtomicReference<CachedPattern> SKIP_PATTERN_CACHE =
+            new AtomicReference<>(new CachedPattern("", null));
 
     // ── HTTP Retry 設定 ─────────────────────────────────────────────────────
     /**
@@ -295,8 +302,9 @@ public final class MqPackReplayer {
     }
 
     private static Pattern compileSkipPattern(String skipRegExp) {
-        if (skipRegExp.equals(cachedSkipRegExp)) {
-            return cachedSkipPattern;
+        CachedPattern cached = SKIP_PATTERN_CACHE.get();
+        if (skipRegExp.equals(cached.regExp())) {
+            return cached.pattern();
         }
         Pattern compiled;
         try {
@@ -305,8 +313,8 @@ public final class MqPackReplayer {
             log.warn("[MqPackReplayer] skipRegExp 正則式無效，停用 skip 功能: {}", skipRegExp, e);
             compiled = null;
         }
-        cachedSkipRegExp = skipRegExp;
-        cachedSkipPattern = compiled;
+        // 原子更新：(key, pattern) 同時寫入，其他執行緒永遠看到一致的雙筆 pair
+        SKIP_PATTERN_CACHE.set(new CachedPattern(skipRegExp, compiled));
         return compiled;
     }
 
@@ -343,6 +351,8 @@ public final class MqPackReplayer {
                 });
             }
         } catch (Exception e) {
+            log.warn("[MqPackReplayer] replayLocal 失敗：bid={}, bgroup={}",
+                    pack.getBid(), pack.getBgroup(), e);
             metrics.recordReplayFail();
         }
     }
